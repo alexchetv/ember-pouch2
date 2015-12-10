@@ -23,57 +23,53 @@ export default DS.RESTAdapter.extend({
   // The change listener ensures that individual records are kept up to date
   // when the data in the database changes. This makes ember-data 2.0's record
   // reloading redundant.
-  shouldReloadRecord: function () { return false; },
-  shouldBackgroundReloadRecord: function () { return false; },
+	shouldReloadAll: function() { return true; },
+	shouldBackgroundReloadAll: function() { return true; },
+  shouldReloadRecord: function () { return true; },
+  shouldBackgroundReloadRecord: function () { return true; },
 
   _startChangesToStoreListener: on('init', function () {
-    this.changes = this.get('db').changes({
-      since: 'now',
-      live: true,
-      returnDocs: false
-    }).on('change', bind(this, 'onChange'));
+
+	  this.replicateTo = this.get('db').replicate.to(this.get('remote'),{
+		  live: true,
+		  retry: true
+	  }).on('change', bind(this, 'onToChange'));
+
+	  this.replicateFrom = this.get('db').replicate.from(this.get('remote'),{
+		  live: true,
+		  retry: true
+	  }).on('change', bind(this, 'onFromChange'));
   }),
 
-  onChange: function (change) {
-    // If relational_pouch isn't initialized yet, there can't be any records
-    // in the store to update.
-    if (!this.get('db').rel) { return; }
-
-    var obj = this.get('db').rel.parseDocID(change.id);
-    // skip changes for non-relational_pouch docs. E.g., design docs.
-    if (!obj.type || !obj.id || obj.type === '') { return; }
-
-    var store = this.container.lookup('store:main');
-
-    try {
-      store.modelFor(obj.type);
-    } catch (e) {
-      // The record refers to a model which this version of the application
-      // does not have.
-      return;
-    }
-
-    var recordInStore = store.getById(obj.type, obj.id);
-    if (!recordInStore) {
-      // The record hasn't been loaded into the store; no need to reload its data.
-      return;
-    }
-    if (!recordInStore.get('isLoaded') || recordInStore.get('isDirty')) {
-      // The record either hasn't loaded yet or has unpersisted local changes.
-      // In either case, we don't want to refresh it in the store
-      // (and for some substates, attempting to do so will result in an error).
-      return;
-    }
-
-    if (change.deleted) {
-      store.unloadRecord(recordInStore);
-    } else {
-      recordInStore.reload();
-    }
+  onFromChange: function (change) {
+	  console.log('docs',change.docs);
+	  var self = this;
+	  change.docs.forEach(function (doc) {
+		  console.log('doc',doc);
+		  var obj = self.get('db').rel.parseDocID(doc._id);
+		  console.log('obj',obj);
+		  // skip changes for non-relational_pouch docs. E.g., design docs.
+		  if (!obj.type || obj.type === '') { return; }
+		  //var appController = this.container.lookup("controller:application");
+		  //appController.send('kickSpin');
+		  if (doc._deleted) {
+			  var record = self.get('store').peekRecord(obj.type,obj.id);
+			  if (record && !record.get("isDeleted")) {
+				  record.unloadRecord();
+			  }
+		  } else {
+			  console.log('findTodo');
+			  self.get('store').findRecord(obj.type,obj.id);
+		  }
+	  });
   },
+	onToChange: function (change) {
+		console.log('onToChange',change);
+	},
 
   willDestroy: function() {
     if (this.changes) {
+	    console.log('this.changes.cancel');
       this.changes.cancel();
     }
   },
