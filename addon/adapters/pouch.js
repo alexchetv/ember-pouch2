@@ -17,7 +17,7 @@ const {
   }
 } = Ember;
 
-export default DS.RESTAdapter.extend({
+export default DS.RESTAdapter.extend(Ember.Evented, {
   coalesceFindRequests: true,
 
   // The change listener ensures that individual records are kept up to date
@@ -25,22 +25,36 @@ export default DS.RESTAdapter.extend({
   // reloading redundant.
 	shouldReloadAll: function() { return true; },
 	shouldBackgroundReloadAll: function() { return true; },
-  shouldReloadRecord: function () { return true; },
-  shouldBackgroundReloadRecord: function () { return true; },
+	shouldReloadRecord: function () { return true; },
+	shouldBackgroundReloadRecord: function () { return true; },
 
-  _startChangesToStoreListener: on('init', function () {
+	startReplication: function () {
+		console.log('START REPLICATION');
+		this.replicateTo = this.get('db').replicate.to(this.get('remote'),{
+			live: true,
+			retry: true
+		}).on('change', bind(this, 'onToChange'))
+			.on('paused', bind(this, 'onPaused'))
+			.on('active', bind(this, 'onActive'))
+			.on('denied', bind(this, 'onDenied'))
+			.on('complete', bind(this, 'onComplete'))
+			.on('error', bind(this, 'onError'));
 
-	  this.replicateTo = this.get('db').replicate.to(this.get('remote'),{
-		  live: true,
-		  retry: true
-	  }).on('change', bind(this, 'onToChange'));
-
-	  this.replicateFrom = this.get('db').replicate.from(this.get('remote'),{
-		  live: true,
-		  retry: true
-	  }).on('change', bind(this, 'onFromChange'));
-  }),
-
+		this.replicateFrom = this.get('db').replicate.from(this.get('remote'),{
+			live: true,
+			retry: true
+		}).on('change', bind(this, 'onFromChange'))
+			.on('paused', bind(this, 'onPaused'))
+			.on('active', bind(this, 'onActive'))
+			.on('denied', bind(this, 'onDenied'))
+			.on('complete', bind(this, 'onComplete'))
+			.on('error', bind(this, 'onError'));
+	},
+	stopReplication: function () {
+		console.log('STOP REPLICATION');
+		this.replicateTo.cancel();
+		this.replicateFrom.cancel();
+	},
   onFromChange: function (change) {
 	  console.log('docs',change.docs);
 	  var self = this;
@@ -66,12 +80,27 @@ export default DS.RESTAdapter.extend({
 	onToChange: function (change) {
 		console.log('onToChange',change);
 	},
+	onError: function (err) {
+		this.trigger('ReplicationError',{"err":err});
+	},
+	onPaused: function () {
+		console.log('onPaused');
+		this.trigger('ReplicationPaused');
+	},
+	onActive: function () {
+		console.log('onActive');
+		this.trigger('ReplicationActive');
+	},
+	onDenied: function (err) {
+		this.trigger('ReplicationDenied',{"err":err});
+	},
+	onComplete: function (info) {
+		this.trigger('ReplicationComplete',{"info":info});
+	},
 
   willDestroy: function() {
-    if (this.changes) {
-	    console.log('this.changes.cancel');
-      this.changes.cancel();
-    }
+	  this.replicateTo.cancel();
+	  this.replicateFrom.cancel();
   },
 
   _init: function (store, type) {
