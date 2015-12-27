@@ -28,11 +28,11 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 	shouldReloadRecord: function () { return true; },
 	shouldBackgroundReloadRecord: function () { return true; },
 
-	startReplication: function () {
+	startReplication: function (live_retry = true) {
 		console.log('START REPLICATION');
 		this.replicateTo = this.get('db').replicate.to(this.get('remote'),{
-			live: true,
-			retry: true
+			live: live_retry,
+			retry: live_retry
 		}).on('change', bind(this, 'onToChange'))
 			.on('paused', bind(this, 'onPaused'))
 			.on('active', bind(this, 'onActive'))
@@ -41,8 +41,8 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 			.on('error', bind(this, 'onError'));
 
 		this.replicateFrom = this.get('db').replicate.from(this.get('remote'),{
-			live: true,
-			retry: true
+			live: live_retry,
+			retry: live_retry
 		}).on('change', bind(this, 'onFromChange'))
 			.on('paused', bind(this, 'onPaused'))
 			.on('active', bind(this, 'onActive'))
@@ -72,7 +72,7 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 				  record.unloadRecord();
 			  }
 		  } else {
-			  console.log('findTodo');
+			  console.log('findRecord');
 			  self.get('store').findRecord(obj.type,obj.id);
 		  }
 	  });
