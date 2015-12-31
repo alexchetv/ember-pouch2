@@ -94,7 +94,7 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 		this.trigger('ReplicationDenied',{"err":err});
 	},
 	onComplete: function (info) {
-		console.log('onConplete');
+		console.log('onComplete');
 		this.trigger('ReplicationComplete',{"info":info});
 	},
 
@@ -109,7 +109,7 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 			that.trigger('ChangesChange',{"change":change});
 		}).on('complete', function (info) {
 			// changes() was canceled
-			console.log('onChangesConplete');
+			console.log('onChangesComplete');
 			that.trigger('ChangesComplete',{"info":info});
 		}).on('error', function (err) {
 			console.log('onChangesError');
