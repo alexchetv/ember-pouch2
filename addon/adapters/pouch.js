@@ -25,8 +25,8 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
   // reloading redundant.
 	shouldReloadAll: function() { return true; },
 	shouldBackgroundReloadAll: function() { return true; },
-	shouldReloadRecord: function () { return true; },
-	shouldBackgroundReloadRecord: function () { return true; },
+  shouldReloadRecord: function () { return true; },
+  shouldBackgroundReloadRecord: function () { return true; },
 
 	startReplication: function (live_retry = true) {
 		console.log('START REPLICATION');
@@ -56,23 +56,20 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 		this.replicateFrom.cancel();
 	},
   onFromChange: function (change) {
-	  console.log('docs',change.docs);
+	  console.log('onFromChange',change.docs);
 	  var self = this;
 	  change.docs.forEach(function (doc) {
-		  console.log('doc',doc);
 		  var obj = self.get('db').rel.parseDocID(doc._id);
-		  console.log('obj',obj);
 		  // skip changes for non-relational_pouch docs. E.g., design docs.
 		  if (!obj.type || obj.type === '') { return; }
-		  //var appController = this.container.lookup("controller:application");
-		  //appController.send('kickSpin');
+		  console.log('doc',doc);
 		  if (doc._deleted) {
 			  var record = self.get('store').peekRecord(obj.type,obj.id);
 			  if (record && !record.get("isDeleted")) {
 				  record.unloadRecord();
 			  }
 		  } else {
-			  console.log('findRecord');
+			  console.log('findTodo');
 			  self.get('store').findRecord(obj.type,obj.id);
 		  }
 	  });
@@ -81,6 +78,7 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 		console.log('onToChange',change);
 	},
 	onError: function (err) {
+		console.log('onError');
 		this.trigger('ReplicationError',{"err":err});
 	},
 	onPaused: function () {
@@ -92,15 +90,40 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
 		this.trigger('ReplicationActive');
 	},
 	onDenied: function (err) {
+		console.log('onDenied');
 		this.trigger('ReplicationDenied',{"err":err});
 	},
 	onComplete: function (info) {
+		console.log('onConplete');
 		this.trigger('ReplicationComplete',{"info":info});
+	},
+
+	startListenChanges: function (include_docs = false) {
+		var that = this;
+		this.changes = this.get('remote').changes({
+			since: 'now',
+			live: true,
+			include_docs: include_docs
+		}).on('change', function (change) {
+			console.log('onChangesChange');
+			that.trigger('ChangesChange',{"change":change});
+		}).on('complete', function (info) {
+			// changes() was canceled
+			console.log('onChangesConplete');
+			that.trigger('ChangesComplete',{"info":info});
+		}).on('error', function (err) {
+			console.log('onChangesError');
+			that.trigger('ChangesError',{"err":err});
+		});
+	},
+	stopListenChanges: function () {
+		this.changes.cancel();
 	},
 
   willDestroy: function() {
 	  this.replicateTo.cancel();
 	  this.replicateFrom.cancel();
+	  this.changes.cancel();
   },
 
   _init: function (store, type) {
