@@ -312,5 +312,9 @@ export default DS.RESTAdapter.extend(Ember.Evented, {
     var data = this._recordToData(store, type, record);
     return this.get('db').rel.del(this.getRecordTypeName(type), data)
       .then(extractDeleteRecord);
-  }
+  },
+	destroyLocalDb: function () {
+		this._schema = [];
+		return this.get('db').destroy();
+	}
 });
